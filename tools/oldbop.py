@@ -116,11 +116,47 @@ def animated(path):
         return False
 
 
+def fix_loot_conditions(v):
+    """26.3's 0.2.7 writes some loot pools' `conditions` as `condition` (its signs): the game refuses
+    the key and with it the world's data packs. Renamed in place; how many."""
+    n = 0
+    if isinstance(v, dict):
+        if isinstance(v.get('condition'), list) and 'conditions' not in v:
+            v['conditions'] = v.pop('condition')
+            n += 1
+        for x in v.values():
+            n += fix_loot_conditions(x)
+    elif isinstance(v, list):
+        for x in v:
+            n += fix_loot_conditions(x)
+    return n
+
+
+def fix_loot_tables(out):
+    fixed = 0
+    data = os.path.join(out, 'data')
+    for ns in os.listdir(data):
+        lt = os.path.join(data, ns, 'loot_table')
+        for d, _, files in os.walk(lt):
+            for f in files:
+                if f.endswith('.json'):
+                    path = os.path.join(d, f)
+                    with open(path) as fh:
+                        table = json.load(fh)
+                    if fix_loot_conditions(table):
+                        with open(path, 'w') as fh:
+                            json.dump(table, fh, indent=2)
+                            fh.write('\n')
+                        fixed += 1
+    return fixed
+
+
 def main():
     new, jar, out = sys.argv[1:4]
     if os.path.exists(out):
         shutil.rmtree(out)
     shutil.copytree(new, out)
+    print(fix_loot_tables(out), 'loot tables: condition -> conditions')
     nt = os.path.join(out, 'assets', 'biomesoplenty', 'textures')
     ot = os.path.join(jar, 'assets', 'biomesoplenty', 'textures')
     pairs = []
